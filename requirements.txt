@@ -1,0 +1,8 @@
+twint==2.1.4
+spacy==2.3.1
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz#en_core_web_sm
+google-cloud-storage
+tweepy
+Flask==1.0.2
+tensorflow==1.15
+gpt_2_simple
