@@ -138,9 +138,14 @@ def is_reply(tweet):
 
 def post_tweet(request):
     
-    # Get function parameters
-    usernames = request.get_json()
+    content_type = request.headers['content-type']
     
+    if content_type == 'application/json':
+        usernames = request.get_json(silent=True)
+    elif content_type == 'application/octet-stream':
+        # Get function parameters
+        usernames = json.loads(request.data)
+
     # Count of user tweets to validate
     tweets_to_process = 40
     # Twitter API delay (seconds)
@@ -262,7 +267,7 @@ def post_tweet(request):
     tweet = gpt2.generate(sess,
                           run_name="538",
                           checkpoint_dir=root_folder,
-                          length=100,
+                          length=140,
                           temperature=.7,
                           nsamples=1,
                           batch_size=1,
@@ -273,7 +278,7 @@ def post_tweet(request):
                          )[0]
     
     # Post the tweet
-    api.update_status(target_tweet_data[0].username + " " + tweet, 
+    api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
                       target_tweet_data[0].id_str)
     print(tweet)
 
