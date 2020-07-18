@@ -229,7 +229,7 @@ def post_tweet(request):
         gpt2.load_gpt2(sess, run_name = "538", checkpoint_dir = root_folder)
         
         prefix = "****ARGUMENTS\nORIGINAL\n****PARENT\n" + "****IN_REPLY_TO\n"
-        prefix += "\n****TWEET\n + word_seed"
+        prefix += "****TWEET\n" + word_seed
         
         tweet = gpt2.generate(sess,
                               run_name="538",
@@ -244,7 +244,7 @@ def post_tweet(request):
                               return_as_list=True
                              )[0]
         
-        print(tweet)
+        print(word_seed + tweet)
         
     elif tweet_type.lower() == "reply".lower():
         
