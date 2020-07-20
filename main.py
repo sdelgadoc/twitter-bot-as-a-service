@@ -138,16 +138,23 @@ def is_reply(tweet):
 
 def post_tweet(request):
 
-    # Process function parameters    
-    content_type = request.headers['content-type']
-    
-    if content_type == 'application/json':
-        parameters = request.get_json(silent=True)
-    elif content_type == 'application/octet-stream':
-        parameters = json.loads(request.data)
+    ## Process function parameters    
+    # If the function was run as an http function
+    if hasattr(request, 'headers'):
+        content_type = request.headers['content-type']
+        
+        if content_type == 'application/json':
+            parameters = request.get_json(silent=True)
+        elif content_type == 'application/octet-stream':
+            parameters = json.loads(request.data)
+    # If the function is run as a python function
+    else:
+        parameters = json.loads(request)
 
     usernames = parameters['usernames']
     tweet_type = parameters['tweet_type']
+    model = parameters['model']
+
 
     ## Constants
     # Count of user tweets to process
@@ -174,6 +181,30 @@ def post_tweet(request):
     auth = tweepy.OAuthHandler(keys["consumer_key"], keys["consumer_secret"])
     auth.set_access_token(keys["access_token"], keys["access_token_secret"])
     api = tweepy.API(auth)
+    
+    
+    # Download the model
+    bucket_name = 'tweets-ai-text-gen-plus-models'
+    prefix = model + '/'
+    root_folder = '/tmp'
+    path = os.path.join(root_folder, prefix)
+    
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=prefix, delimiter="/")
+
+    for blob in blobs:
+        # If the blob is a folder, make the folder
+        if blob.name == prefix:
+            # If the folder doesn't exit, create it
+            if not os.path.exists(path):
+                os.makedirs(path)
+        # Else, it's a file so download it
+        else:
+            filename = blob.name.split('/')[-1]
+            if not os.path.exists(path + filename):
+                blob.download_to_filename(path + filename)
+    
     
     if tweet_type.lower() == "original".lower():
         
@@ -202,47 +233,35 @@ def post_tweet(request):
                 word_seed = word_seed[0]
                 break
         
-        # Download the model
-        bucket_name = 'tweets-ai-text-gen-plus-models'
-        prefix = '538/'
-        root_folder = '/tmp'
-        path = os.path.join(root_folder, prefix)
-        
-        storage_client = storage.Client()
-        bucket = storage_client.get_bucket(bucket_name)
-        blobs = bucket.list_blobs(prefix=prefix, delimiter="/")
-    
-        for blob in blobs:
-            # If the blob is a folder, make the folder
-            if blob.name == prefix:
-                # If the folder doesn't exit, create it
-                if not os.path.exists(path):
-                    os.makedirs(path)
-            # Else, it's a file so download it
-            else:
-                filename = blob.name.split('/')[-1]
-                if not os.path.exists(path + filename):
-                    blob.download_to_filename(path + filename)
         
         # Generate the tweet using the gpt-2 model
         sess = gpt2.start_tf_sess()
-        gpt2.load_gpt2(sess, run_name = "538", checkpoint_dir = root_folder)
+        gpt2.load_gpt2(sess, run_name = model, checkpoint_dir = root_folder)
         
         prefix = "****ARGUMENTS\nORIGINAL\n****PARENT\n" + "****IN_REPLY_TO\n"
         prefix += "****TWEET\n" + word_seed
         
-        tweet = gpt2.generate(sess,
-                              run_name="538",
+        tweets = gpt2.generate(sess,
+                              run_name=model,
                               checkpoint_dir=root_folder,
                               length=140,
                               temperature=.7,
-                              nsamples=1,
+                              nsamples=generate_retries,
                               batch_size=1,
                               prefix=prefix,
                               truncate='<|endoftext|>',
                               include_prefix=False,
                               return_as_list=True
-                             )[0]
+                             )
+        
+        nlp = en_core_web_sm.load()
+        
+        # Iterate through generated tweets and select the first statement
+        tweet = ""
+        for tweet in tweets:
+            
+            if is_statement(tweet, nlp):
+                break
         
         print(word_seed + tweet)
         
@@ -286,8 +305,6 @@ def post_tweet(request):
         tweet_data = []
         # Create an array for the target user's tweets
         target_tweet_data = []
-        # Create the natural language processing object
-        nlp = en_core_web_sm.load()
         
         for username in usernames:
         
@@ -313,38 +330,16 @@ def post_tweet(request):
         
         # Clean the tweet text for model input
         target_tweet_text = clean_text(target_tweet_data[0].tweet)
-    
-        # Download the model
-        bucket_name = 'tweets-ai-text-gen-plus-models'
-        prefix = '538/'
-        root_folder = '/tmp'
-        path = os.path.join(root_folder, prefix)
         
-        storage_client = storage.Client()
-        bucket = storage_client.get_bucket(bucket_name)
-        blobs = bucket.list_blobs(prefix=prefix, delimiter="/")
-    
-        for blob in blobs:
-            # If the blob is a folder, make the folder
-            if blob.name == prefix:
-                # If the folder doesn't exit, create it
-                if not os.path.exists(path):
-                    os.makedirs(path)
-            # Else, it's a file so download it
-            else:
-                filename = blob.name.split('/')[-1]
-                if not os.path.exists(path + filename):
-                    blob.download_to_filename(path + filename)
-    
         # Generate the tweet using the gpt-2 model
         sess = gpt2.start_tf_sess()
-        gpt2.load_gpt2(sess, run_name = "538", checkpoint_dir = root_folder)
+        gpt2.load_gpt2(sess, run_name = model, checkpoint_dir = root_folder)
         
         prefix = "****ARGUMENTS\nREPLY\n****PARENT\n" + target_tweet_text + "\n"
         prefix += "****IN_REPLY_TO\n" + target_tweet_text + "\n****TWEET\n"
         
         tweet = gpt2.generate(sess,
-                              run_name="538",
+                              run_name=model,
                               checkpoint_dir=root_folder,
                               length=140,
                               temperature=.7,
@@ -357,9 +352,10 @@ def post_tweet(request):
                              )[0]
         
         # Post the tweet
-        api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
-                          target_tweet_data[0].id_str)
+        #api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
+        #                  target_tweet_data[0].id_str)
         print(tweet)
 
-#post_tweet('["Nate_Cohn", "ForecasterEnten"]')
-#post_tweet('["Nate_Cohn"]')
+#parameter = """{"usernames" : ["NateSilver538"],"tweet_type" : "ORIGINAL", "model" : "538"}"""
+
+#post_tweet(parameter)
