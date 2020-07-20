@@ -254,6 +254,7 @@ def post_tweet(request):
                               return_as_list=True
                              )
         
+        # Create the natural language processing object
         nlp = en_core_web_sm.load()
         
         # Iterate through generated tweets and select the first statement
@@ -263,7 +264,9 @@ def post_tweet(request):
             if is_statement(tweet, nlp):
                 break
         
-        print(word_seed + tweet)
+        # Post the tweet
+        api.update_status(word_seed + tweet)
+        print("Posted tweet: " + word_seed + tweet)
         
     elif tweet_type.lower() == "reply".lower():
         
@@ -352,10 +355,10 @@ def post_tweet(request):
                              )[0]
         
         # Post the tweet
-        #api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
-        #                  target_tweet_data[0].id_str)
-        print(tweet)
+        api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
+                          target_tweet_data[0].id_str)
+        print("Posted tweet: " + tweet)
 
+## Uncomment to run code locally
 #parameter = """{"usernames" : ["NateSilver538"],"tweet_type" : "ORIGINAL", "model" : "538"}"""
-
 #post_tweet(parameter)
