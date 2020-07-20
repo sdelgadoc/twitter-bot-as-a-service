@@ -206,6 +206,10 @@ def post_tweet(request):
                 blob.download_to_filename(path + filename)
     
     
+    # Create the natural language processing object to be used in many cases
+    nlp = en_core_web_sm.load()
+    
+    
     if tweet_type.lower() == "original".lower():
         
         # Set the source user's username
@@ -254,8 +258,6 @@ def post_tweet(request):
                               return_as_list=True
                              )
         
-        # Create the natural language processing object
-        nlp = en_core_web_sm.load()
         
         # Iterate through generated tweets and select the first statement
         tweet = ""
@@ -328,7 +330,7 @@ def post_tweet(request):
             
             print("Collected tweets from target username: " + username)
         
-        # Sort the potential target tweet by most recent to least recent
+        # Sort the potential target tweets by most recent to least recent
         target_tweet_data.sort(key=lambda x: x.datetime, reverse = True)
         
         # Clean the tweet text for model input
@@ -361,4 +363,6 @@ def post_tweet(request):
 
 ## Uncomment to run code locally
 #parameter = """{"usernames" : ["NateSilver538"],"tweet_type" : "ORIGINAL", "model" : "538"}"""
+#parameter = """{"usernames" : ["Nate_Cohn", "ForecasterEnten", "NateSilver538"],"tweet_type" : "REPLY","model" : "538"}"""
+
 #post_tweet(parameter)
