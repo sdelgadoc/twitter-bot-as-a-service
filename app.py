@@ -1,6 +1,6 @@
-from starlette.applications import Starlette
-from starlette.responses import UJSONResponse
-import uvicorn
+from flask import Flask
+from flask import request
+import asyncio
 
 import twint
 from datetime import datetime
@@ -11,13 +11,12 @@ import tweepy
 from time import sleep
 import json
 import re
+from google.cloud import storage
+import gpt_2_simple as gpt2
 
-app = Starlette(debug=False)
 
-# Needed to avoid cross-domain issues
-response_header = {
-    'Access-Control-Allow-Origin': '*'
-}
+app = Flask(__name__)
+
 
 def clean_text(tweet_text, strip_usertags = False, strip_hashtags = False):
     """
@@ -142,24 +141,233 @@ def is_reply(tweet):
     return False
 
 
-@app.route('/', methods=['GET', 'POST', 'HEAD'])
-async def homepage(request):
+@app.route('/', methods=['GET', 'POST'])
+def main():
     
     if request.method == 'GET':
-        params = request.query_params
+        params = json.loads(request.args)
         print("GET")
     elif request.method == 'POST':
-        params = await request.json()
+        print(request.get_json())
+        params = request.get_json()
         print("POST")
-    elif request.method == 'HEAD':
-        print("HEAD")
-        return UJSONResponse({'text': ''},
-                             headers=response_header)
-        
-    print(params)
     
-    return UJSONResponse({'text': "Hellow World"},
-                         headers=response_header)
+    usernames = params['usernames']
+    tweet_type = params['tweet_type']
+    model = params['model']
 
-if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+    ## Constants
+    # Count of user tweets to process
+    tweets_to_process = 20
+    # Twitter API delay (seconds)
+    tweepy_delay = 1.5
+    # Times to retry generating a tweet
+    generate_retries = 5
+    
+    
+    # Surpress random twint warnings
+    logger = logging.getLogger()
+    logger.disabled = True
+    
+    
+    # Get Twitter API authentication data
+    keys = {}
+    keys['consumer_key'] = os.environ['CONSUMER_KEY']
+    keys['access_token'] = os.environ['ACCESS_TOKEN']
+    keys['access_token_secret'] = os.environ['ACCESS_TOKEN_SECRET']
+    keys['consumer_secret'] = os.environ['CONSUMER_SECRET']
+    
+    # Authenticate with the Twitter API
+    auth = tweepy.OAuthHandler(keys["consumer_key"], keys["consumer_secret"])
+    auth.set_access_token(keys["access_token"], keys["access_token_secret"])
+    api = tweepy.API(auth)
+    
+    # Download the model
+    bucket_name = 'tweets-ai-text-gen-plus-models'
+    prefix = model + '/'
+    root_folder = '/tmp'
+    path = os.path.join(root_folder, prefix)
+    
+    print("Start authentication")
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=prefix, delimiter="/")
+    print("End authentication")
+    
+    for blob in blobs:
+        # If the blob is a folder, make the folder
+        if blob.name == prefix:
+            # If the folder doesn't exit, create it
+            if not os.path.exists(path):
+                os.makedirs(path)
+        # Else, it's a file so download it
+        else:
+            filename = blob.name.split('/')[-1]
+            if not os.path.exists(path + filename):
+                print("Start download")
+                blob.download_to_filename(path + filename)
+                print("End download")
+    
+    # Create the natural language processing object to be used in many cases
+    nlp = en_core_web_sm.load()
+    
+    
+    if tweet_type.lower() == "original".lower():
+        
+        # Set the source user's username
+        username = usernames[0]
+        
+        # Collect the latest tweets from the authenticating user
+        tweet_data = []
+        c = twint.Config()
+        c.Store_object = True
+        c.Hide_output = True
+        c.Username = username
+        c.Limit = tweets_to_process
+        c.Store_object_tweets_list = tweet_data
+    
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        twint.run.Search(c)
+        
+        print("Collected tweets from source username: " + username)
+        
+        
+        # Find latest tweet that is not a reply, and use as word seed generator
+        word_seed = ""
+        for tweet in tweet_data:
+            if not is_reply(tweet):
+                word_seed = tweet.tweet.split()
+                word_seed = word_seed[0]
+                break
+        
+        
+        # Generate the tweet using the gpt-2 model
+        sess = gpt2.start_tf_sess()
+        gpt2.load_gpt2(sess, run_name = model, checkpoint_dir = root_folder)
+        
+        prefix = "****ARGUMENTS\nORIGINAL\n****PARENT\n" + "****IN_REPLY_TO\n"
+        prefix += "****TWEET\n" + word_seed
+        
+        tweets = gpt2.generate(sess,
+                              run_name=model,
+                              checkpoint_dir=root_folder,
+                              length=140,
+                              temperature=.7,
+                              nsamples=generate_retries,
+                              batch_size=1,
+                              prefix=prefix,
+                              truncate='<|endoftext|>',
+                              include_prefix=False,
+                              return_as_list=True
+                             )
+        
+        
+        # Iterate through generated tweets and select the first statement
+        tweet = ""
+        for tweet in tweets:
+            
+            if is_statement(tweet, nlp):
+                break
+        
+        # Post the tweet
+        api.update_status(word_seed + tweet)
+        print("Posted tweet: " + word_seed + tweet)
+        return("Posted tweet: " + word_seed + tweet)
+        
+    elif tweet_type.lower() == "reply".lower():
+        
+        # Set the authenticating user's username
+        username = api.me().screen_name
+        sleep(tweepy_delay)
+        
+        # Collect the latest tweets from the authenticating user
+        tweet_data = []
+        c = twint.Config()
+        c.Store_object = True
+        c.Hide_output = True
+        c.Username = username
+        c.Limit = tweets_to_process
+        c.Store_object_tweets_list = tweet_data
+    
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        twint.run.Search(c)
+        
+        print("Collected tweets from calling username: " + username)
+        
+        # Create a list of tweets that were replied-to
+        replied_to_tweets = []
+        for tweet in tweet_data:
+            
+            # If the tweet is a reply, append the tweet ID it replied-to
+            if is_reply(tweet):
+                try:
+                    # Get the tweet's API object
+                    tweet_object = api.get_status(tweet.id_str)
+                    sleep(tweepy_delay)
+                
+                    # Append the tweet ID that was replied-to
+                    replied_to_tweets.append(tweet_object.in_reply_to_status_id_str)
+                
+                # If tweet doesn't exist, ignore it
+                except tweepy.error.TweepError:
+                    pass
+        
+        tweet_data = []
+        # Create an array for the target user's tweets
+        target_tweet_data = []
+        
+        for username in usernames:
+        
+            c = twint.Config()
+            c.Store_object = True
+            c.Hide_output = True
+            c.Username = username
+            c.Limit = tweets_to_process
+            c.Store_object_tweets_list = tweet_data
+        
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            twint.run.Search(c)
+            
+            for tweet in tweet_data:
+                
+                if not is_reply(tweet) and is_statement(tweet.tweet, nlp) > 0 and not tweet.id_str in replied_to_tweets:
+                    
+                    target_tweet_data.append(tweet)
+            
+            print("Collected tweets from target username: " + username)
+        
+        # Sort the potential target tweets by most recent to least recent
+        target_tweet_data.sort(key=lambda x: x.datetime, reverse = True)
+        
+        # Clean the tweet text for model input
+        target_tweet_text = clean_text(target_tweet_data[0].tweet)
+        
+        # Generate the tweet using the gpt-2 model
+        sess = gpt2.start_tf_sess()
+        gpt2.load_gpt2(sess, run_name = model, checkpoint_dir = root_folder)
+        
+        prefix = "****ARGUMENTS\nREPLY\n****PARENT\n" + target_tweet_text + "\n"
+        prefix += "****IN_REPLY_TO\n" + target_tweet_text + "\n****TWEET\n"
+        
+        tweet = gpt2.generate(sess,
+                              run_name=model,
+                              checkpoint_dir=root_folder,
+                              length=140,
+                              temperature=.7,
+                              nsamples=1,
+                              batch_size=1,
+                              prefix=prefix,
+                              truncate='<|endoftext|>',
+                              include_prefix=False,
+                              return_as_list=True
+                             )[0]
+        
+        # Post the tweet
+        api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
+                          target_tweet_data[0].id_str)
+        print("Posted tweet: " + tweet)
+        return("Posted tweet: " + tweet)
+
+if __name__ == "__main__":
+    app.run(debug=True,host='0.0.0.0',port=int(os.environ.get('PORT', 8080)))

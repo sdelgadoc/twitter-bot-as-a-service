@@ -1,8 +1,10 @@
-starlette
-uvicorn
+Flask
+gunicorn
 ujson
 twint==2.1.4
 spacy==2.3.1
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz#en_core_web_sm
 google-cloud-storage
 tweepy
+tensorflow==1.15.2
+gpt_2_simple

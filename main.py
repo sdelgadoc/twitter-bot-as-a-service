@@ -204,6 +204,8 @@ def post_tweet(request):
             filename = blob.name.split('/')[-1]
             if not os.path.exists(path + filename):
                 blob.download_to_filename(path + filename)
+                #blob.download_to_filename(blob.name)
+                
     
     
     # Create the natural language processing object to be used in many cases
@@ -362,7 +364,7 @@ def post_tweet(request):
         print("Posted tweet: " + tweet)
 
 ## Uncomment to run code locally
-#parameter = """{"usernames" : ["NateSilver538"],"tweet_type" : "ORIGINAL", "model" : "538"}"""
+parameter = """{"usernames" : ["NateSilver538"],"tweet_type" : "ORIGINAL", "model" : "538"}"""
 #parameter = """{"usernames" : ["Nate_Cohn", "ForecasterEnten", "NateSilver538"],"tweet_type" : "REPLY","model" : "538"}"""
 
-#post_tweet(parameter)
+post_tweet(parameter)
