@@ -5,14 +5,13 @@ import asyncio
 import twint
 from datetime import datetime
 import logging
-import en_core_web_sm
 import os
 import tweepy
 from time import sleep
 import json
 import re
 from google.cloud import storage
-import gpt_2_simple as gpt2
+import gc
 
 
 app = Flask(__name__)
@@ -143,14 +142,22 @@ def is_reply(tweet):
 
 @app.route('/', methods=['GET', 'POST'])
 def main():
+    import en_core_web_sm
     
-    if request.method == 'GET':
-        params = json.loads(request.args)
-        print("GET")
-    elif request.method == 'POST':
-        print(request.get_json())
-        params = request.get_json()
-        print("POST")
+    
+    ## Process function parameters    
+    # If the function was run as an http function
+    if hasattr(request, 'headers'):
+        content_type = request.headers['Content-Type']
+        
+        if content_type == 'application/json':
+            params = request.get_json()
+        elif content_type == 'application/octet-stream':
+            params = json.loads(request.data)
+    # If the function is run from coomand line run as a python function
+    else:
+        params = json.loads(request)
+    
     
     usernames = params['usernames']
     tweet_type = params['tweet_type']
@@ -189,31 +196,34 @@ def main():
     root_folder = '/tmp'
     path = os.path.join(root_folder, prefix)
     
-    print("Start authentication")
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix, delimiter="/")
-    print("End authentication")
     
+    files = []
     for blob in blobs:
         # If the blob is a folder, make the folder
         if blob.name == prefix:
             # If the folder doesn't exit, create it
             if not os.path.exists(path):
                 os.makedirs(path)
+                files.insert(0,path)
         # Else, it's a file so download it
         else:
             filename = blob.name.split('/')[-1]
             if not os.path.exists(path + filename):
-                print("Start download")
                 blob.download_to_filename(path + filename)
-                print("End download")
+                files.insert(0,path + filename)
     
     # Create the natural language processing object to be used in many cases
     nlp = en_core_web_sm.load()
     
+    # The tweet that will be posted
+    tweet = ""
     
     if tweet_type.lower() == "original".lower():
+        import gpt_2_simple as gpt2
+        import tensorflow as tf
         
         # Set the source user's username
         username = usernames[0]
@@ -270,12 +280,23 @@ def main():
             if is_statement(tweet, nlp):
                 break
         
+        tweet = word_seed + tweet
+        
         # Post the tweet
-        api.update_status(word_seed + tweet)
-        print("Posted tweet: " + word_seed + tweet)
-        return("Posted tweet: " + word_seed + tweet)
+        api.update_status(tweet)
+
+        
+        # Clean up memory as much as possible
+        sess.close()
+        tf.reset_default_graph()
+        tweet_data = []
+        nlp = []
+        gc.collect()
+        
         
     elif tweet_type.lower() == "reply".lower():
+        import gpt_2_simple as gpt2
+        import tensorflow as tf
         
         # Set the authenticating user's username
         username = api.me().screen_name
@@ -366,8 +387,28 @@ def main():
         # Post the tweet
         api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
                           target_tweet_data[0].id_str)
-        print("Posted tweet: " + tweet)
-        return("Posted tweet: " + tweet)
+      
+        
+        # Clean up memory as much as possible
+        sess.close()
+        tf.reset_default_graph()
+        tweet_data = []
+        nlp = []
+        gc.collect()
+    
+    
+    # Delete stored files    
+    for file in files:
+        if os.path.isdir(file):
+            os.rmdir(file)
+        else:
+            os.remove(file)
+    
+    gc.collect()
+    
+    print("Posted the following tweet: " + tweet)
+    return("Posted the following tweet: " + tweet)
+        
 
 if __name__ == "__main__":
     app.run(debug=True,host='0.0.0.0',port=int(os.environ.get('PORT', 8080)))
