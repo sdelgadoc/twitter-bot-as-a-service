@@ -13,7 +13,6 @@ import re
 from google.cloud import storage
 import gc
 
-
 app = Flask(__name__)
 
 
@@ -142,8 +141,8 @@ def is_reply(tweet):
 
 @app.route('/', methods=['GET', 'POST'])
 def main():
-    import en_core_web_sm
     
+    import en_core_web_sm
     
     ## Process function parameters    
     # If the function was run as an http function
@@ -166,7 +165,7 @@ def main():
 
     ## Constants
     # Count of user tweets to process
-    tweets_to_process = 20
+    tweets_to_process = 10
     # Twitter API delay (seconds)
     tweepy_delay = 1.5
     # Times to retry generating a tweet
@@ -251,6 +250,9 @@ def main():
                 word_seed = word_seed[0]
                 break
         
+        # Clean up collected tweet data before loading Tensorflow
+        tweet_data = []
+        gc.collect()
         
         # Generate the tweet using the gpt-2 model
         sess = gpt2.start_tf_sess()
@@ -276,7 +278,6 @@ def main():
         # Iterate through generated tweets and select the first statement
         tweet = ""
         for tweet in tweets:
-            
             if is_statement(tweet, nlp):
                 break
         
@@ -289,7 +290,6 @@ def main():
         # Clean up memory as much as possible
         sess.close()
         tf.reset_default_graph()
-        tweet_data = []
         nlp = []
         gc.collect()
         
@@ -397,13 +397,14 @@ def main():
         gc.collect()
     
     
-    # Delete stored files    
+    # Delete stored files and directory
     for file in files:
-        if os.path.isdir(file):
-            os.rmdir(file)
-        else:
+        if not os.path.isdir(file):
             os.remove(file)
     
+    os.rmdir(path)
+    
+    # Run garbage collection one last time for good measure
     gc.collect()
     
     print("Posted the following tweet: " + tweet)

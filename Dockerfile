@@ -9,8 +9,8 @@ WORKDIR /
 # and improve build times if making changes.
 COPY app.py /
 COPY requirements.txt /
-# For running locally, copy the Google authentication crednetials file
-#COPY [filename].json /
+# For running locally, copy the Google authentication credentials file
+#COPY google-auth-credentials-file.json /
 RUN pip3 --no-cache-dir install -r requirements.txt
 
 
