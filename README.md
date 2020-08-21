@@ -15,12 +15,12 @@ First, create a project in Google Cloud:
 Once you've created the project, clone this repository on your system:
 
 ```sh
-git clone https://github.com/sdelgadoc/twitter-post-cloud-function
+git clone https://github.com/sdelgadoc/twitter-bot-as-a-service
 ```
 
 Then, make the new directory your working directory:
 ```sh
-cd twitter-post-cloud-function
+cd twitter-bot-as-a-service
 ```
 
 Build the Docker immage using the following command (this assumes you have Docker installed):
@@ -29,8 +29,15 @@ docker build -t post_tweet:latest .
 ```
 
 Once the Docker image is built, tag the image to prepare for pushing to Google Cloud
+>NOTE: [Google Cloud ID] is the ID of the Google Cloud Project we created earlier, in this case "post_tweet"
 ```sh
-docker tag post_tweet:latest gcr.io/[Google Cloud Project Name]/post_tweet
+docker tag post_tweet:latest gcr.io/[Google Cloud Project ID]/post_tweet
+```
+
+
+Push the Docker image to your Google Cloud Container registry:
+```sh
+docker push gcr.io/[Google Cloud Project ID]/post_tweet
 ```
 
 Then, create a new Cloud Run service:
