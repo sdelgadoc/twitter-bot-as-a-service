@@ -1,6 +1,9 @@
 # twitter-bot-as-a-service
 
 A lightweight Docker image written in Python 3 to post tweets as a service with AI models pretrained with [GPT-2](https://openai.com/blog/better-language-models/) based on Twitter data.
+
+For live examples of the code, check out [Human data journalist](https://twitter.com/datajourno_gpt2), [Republican reading the news](https://twitter.com/apGOP_gpt2), and [Democrat reading the news](https://twitter.com/apDNC_gpt2)
+
 * Developing an automated twitter bot can be difficult, and time consuming due to the need to understand programming, AI tools, and back-end development
 * This code included step-by-step directions to implement code that posts original tweets and replies to existing tweets
 * Does not require time-consuming and costly training of AI models
@@ -57,10 +60,24 @@ In the Configure the service's first revision page:
 * Select Deploy one revision from an existing image
 * Click SELECT and search for the Docker container your pushed previously and select it
 * Click on Show advanced setting
+
+In the CONTAINER section of Advanced settings:
 * Leave default values for everything except the following:
   * Set Memory Allocated to 4 GiB
   * Set Request timeout to 900
   * Set Maximum requests per container to 1
+
+In the VARIABLES section of Advanced settings:
+* Click on "+ ADD VARIABLE" to add environmental variables necessary for the script to run
+  * We are going to create environmental variables to store your Twitter Application's aunthentication credentials
+  * If you don't have a Twitter Application yet, [follow these steps](https://developer.twitter.com/en/docs/apps/overview) to create one
+* Create the following four environmental variables with their respective values:
+  1. CONSUMER_KEY
+  2. ACCESS_TOKEN
+  3. ACCESS_TOKEN_SECRET
+  4. CONSUMER_SECRET
+* Finally create the following environmental variable to generate improved logging in Google Cloud, and set the value to "TRUE"
+  1. PYTHONUNBUFFERED
 
 You are done!  Click on CREATE to create your Cloud Run service
 
