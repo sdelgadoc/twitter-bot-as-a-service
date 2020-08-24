@@ -199,20 +199,17 @@ def main():
     bucket = storage_client.get_bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=prefix, delimiter="/")
     
+    # Array of downloaded file names
     files = []
+    # Create the folder to save files
+    os.makedirs(path)
+    # Iterate through file list and download
     for blob in blobs:
-        # If the blob is a folder, make the folder
-        if blob.name == prefix:
-            # If the folder doesn't exit, create it
-            if not os.path.exists(path):
-                os.makedirs(path)
-                files.insert(0,path)
-        # Else, it's a file so download it
-        else:
-            filename = blob.name.split('/')[-1]
-            if not os.path.exists(path + filename):
-                blob.download_to_filename(path + filename)
-                files.insert(0,path + filename)
+        # If the blob is not a folder, download the file
+        filename = blob.name.split('/')[-1]
+        if not os.path.exists(path + filename):
+            blob.download_to_filename(path + filename)
+            files.insert(0,path + filename)
     
     # Create the natural language processing object to be used in many cases
     nlp = en_core_web_sm.load()
