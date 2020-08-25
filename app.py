@@ -201,8 +201,9 @@ def main():
     
     # Array of downloaded file names
     files = []
-    # Create the folder to save files
-    os.makedirs(path)
+    # Create the folder to save files if it doesn't exist
+    if not os.path.exists(path):
+        os.makedirs(path)
     # Iterate through file list and download
     for blob in blobs:
         # If the blob is not a folder, download the file
