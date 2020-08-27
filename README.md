@@ -1,19 +1,17 @@
 # twitter-bot-as-a-service
 
-A lightweight Docker image written in Python 3 to post tweets as a service with AI models pretrained with [GPT-2](https://openai.com/blog/better-language-models/) based on Twitter data.
+A lightweight Docker image written in Python 3 to post tweets as a service with AI models pretrained with [GPT-2](https://openai.com/blog/better-language-models/) based on Twitter data
 
 For live examples of the code, check out [Human data journalist](https://twitter.com/datajourno_gpt2), [Republican reading the news](https://twitter.com/apGOP_gpt2), and [Democrat reading the news](https://twitter.com/apDNC_gpt2)
 
-* Developing an automated twitter bot can be difficult, and time consuming due to the need to understand programming, AI tools, and back-end development
-* This code included step-by-step directions to implement code that posts original tweets and replies to existing tweets
+* Repo included step-by-step directions to implement a Docker image on Google Cloud Run that posts original tweets and replies to existing tweets
 * Does not require time-consuming and costly training of AI models
 * Includes multiple AI models trained on different personas (e.g., data journalists, Republicans, Democrats)
 * Runs very inexpensively on Google Cloud's Cloud Run platform
 
 ## Setup
 
-First, create a project in Google Cloud:
-[TODO add steps to create a new project in Google Cloud]
+First, create a project in Google Cloud.  If you haven't created one before, follow the steps in [this Google tutorial](https://cloud.google.com/appengine/docs/standard/nodejs/building-app/creating-project).
 
 Once you've created the project, clone this repository on your system:
 
@@ -35,7 +33,7 @@ Once the Docker image is built, tag the image to prepare for pushing to Google C
 ```sh
 docker tag post_tweet:latest gcr.io/[Google Cloud Project ID]/post_tweet
 ```
-* _Note: [Google Cloud Project ID] is the ID of the Google Cloud Project we created earlier, in this case "post_tweet"_
+* _Note: [Google Cloud Project ID] is the ID of the Google Cloud Project we created earlier, in this case "post-tweet"_
 
 Push the Docker image to your Google Cloud Container registry:
 ```sh
@@ -43,7 +41,7 @@ docker push gcr.io/[Google Cloud Project ID]/post_tweet
 ```
 
 Then, create a new Cloud Run service:
-* In the Google Cloud search bar type "cloud run"
+* In the Google Cloud Console search bar type "cloud run"
 * Select "Cloud Run" from the list of options
 * In the Cloud Run configuration page, select CREATE SERVICE
 
@@ -51,7 +49,7 @@ In the Create Service configuration page:
 * Set the Deployment platform as "Cloud Run (fully managed)"
 * For Region, select "us-central1 (Iowa)"
   * This selection is surprisingly important because all the models are in that Region, and if you pick another one, it will degrade performance and increase cost
-* For Service name, pick something relevant, in this case I will use "post-tweet"
+* For Service name, pick something relevant, in this case I will use "post-a-tweet"
 * Finally for Authentication, select "Allow unauthenticated invocations"
   * You will likely want to get more rigorous with authentication, but for now, we're doing this quickly so we can see the result
 * Click on NEXT to continue
