@@ -45,6 +45,8 @@ Then, create a new Cloud Run service:
 * Select "Cloud Run" from the list of options
 * In the Cloud Run configuration page, select CREATE SERVICE
 
+![Image of how to create Cloud Run service](https://github.com/sdelgadoc/twitter-bot-as-a-service/blob/master/Images/Create-service-console.png)
+
 In the Create Service configuration page:
 * Set the Deployment platform as "Cloud Run (fully managed)"
 * For Region, select "us-central1 (Iowa)"
@@ -54,16 +56,22 @@ In the Create Service configuration page:
   * You will likely want to get more rigorous with authentication, but for now, we're doing this quickly so we can see the result
 * Click on NEXT to continue
 
+![Image of how to start configuring a Cloud Run service](https://github.com/sdelgadoc/twitter-bot-as-a-service/blob/master/Images/Create-service.png)
+
 In the Configure the service's first revision page:
 * Select Deploy one revision from an existing image
 * Click SELECT and search for the Docker container your pushed previously and select it
 * Click on Show advanced setting
+
+![Image of how to select an image](https://github.com/sdelgadoc/twitter-bot-as-a-service/blob/master/Images/Configure-service.png)
 
 In the CONTAINER section of Advanced settings:
 * Leave default values for everything except the following:
   * Set Memory Allocated to 4 GiB
   * Set Request timeout to 900
   * Set Maximum requests per container to 1
+
+![Image of how to configure advanced container settings](https://github.com/sdelgadoc/twitter-bot-as-a-service/blob/master/Images/Advanced-settings-container.png)
 
 In the VARIABLES section of Advanced settings:
 * Click on "+ ADD VARIABLE" to add environmental variables necessary for the script to run
@@ -76,6 +84,8 @@ In the VARIABLES section of Advanced settings:
   4. CONSUMER_SECRET
 * Finally create the following environmental variable to generate improved logging in Google Cloud, and set the value to "TRUE"
   1. PYTHONUNBUFFERED
+
+![Image of how to configure advanced variable settings](https://github.com/sdelgadoc/twitter-bot-as-a-service/blob/master/Images/Advanced-settings-variables.png)
 
 You are done!  Click on CREATE to create your Cloud Run service
 
