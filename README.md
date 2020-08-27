@@ -90,8 +90,23 @@ In the VARIABLES section of Advanced settings:
 You are done!  Click on CREATE to create your Cloud Run service
 
 ## Usage
+The endpoint that you created will post a tweet when it receives a POST request with JSON data in the format below:
+```json
+{
+    "tweet_type" : "ORIGINAL",
+    "usernames" : ["NateSilver538"],
+    "model" : "538"
+}
+```
 
+* Tweet type: A single string that specifies whether you want to post an original tweet to the account's timeline, or reply to another account's tweet.  Values can be "ORIGINAL" or "REPLY"
+* Usernames: An array of strings with Twitter account names.  If 'tweet_type' is "ORIGINAL", the model uses the first word of the account's latest tweet as a seed to generate a tweet.  If 'tweet_type' is "REPLY", the model uses the array of accounts to find the most recent tweet to repond to.
+* Model: The GPT-2 model that should be used to generate the tweet.  Currently, options are: "538" based on data journalist accounts, "GOP" based on Republican political accounts, "DNC" based on Democratic political accounts
 
+To call your endpoint you can send the POST request with the following command:
+```sh
+curl -d '{"tweet_type" : "ORIGINAL","usernames" : ["NateSilver538"],"model" : "538"}' -H 'Content-Type: application/json' https://[your-google-run-endpoint]
+```
 
 ## Maintainer
 
