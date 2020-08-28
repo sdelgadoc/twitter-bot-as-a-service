@@ -112,6 +112,33 @@ curl -d '{"tweet_type" : "ORIGINAL","usernames" : ["NateSilver538"],"model" : "5
 
 Santiago Delgado  ([@santiagodc](https://twitter.com/santiagodc))
 
+# Appendix
+If you would like to run this Docker image locally, follow these steps:
+
+Just as you did before, make this repo's directory your current directory, and build the Docker image:
+Build the Docker immage using the following command (this assumes you have Docker installed):
+```sh
+docker build -t post_tweet:latest .
+```
+
+Then, run the image locally using the following command:
+```sh
+docker run \
+-p 8080:8080 \
+-e CONSUMER_KEY='[your Twitter app's value]' \
+-e ACCESS_TOKEN='[your Twitter app's value]' \
+-e ACCESS_TOKEN_SECRET='[your Twitter app's value]' \
+-e CONSUMER_SECRET='[your Twitter app's value]' \
+-e PYTHONUNBUFFERED=TRUE \
+-e PORT='8080' \
+post_tweet:latest
+```
+
+Finally, to call your endpoint you can send the POST request with the following command:
+```sh
+curl -d '{"tweet_type" : "ORIGINAL","usernames" : ["NateSilver538"],"model" : "538"}' -H 'Content-Type: application/json' http://localhost:8080
+```
+
 ## License
 
 MIT
