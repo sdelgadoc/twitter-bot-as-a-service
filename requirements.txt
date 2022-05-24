@@ -6,5 +6,5 @@ spacy==2.3.1
 https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz#en_core_web_sm
 google-cloud-storage
 tweepy
-tensorflow==2.5.3
+tensorflow==2.6.4
 gpt_2_simple
