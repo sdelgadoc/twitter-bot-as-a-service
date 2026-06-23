@@ -82,6 +82,12 @@ In the VARIABLES section of Advanced settings:
   2. ACCESS_TOKEN
   3. ACCESS_TOKEN_SECRET
   4. CONSUMER_SECRET
+* To post through Xquik instead of Tweepy, set:
+  1. POST_BACKEND=xquik
+  2. XQUIK_API_KEY
+  3. XQUIK_ACCOUNT
+  4. XQUIK_API_URL, optional, defaults to https://xquik.com/api/v1/x/tweets
+  * Reply mode still uses the existing Twitter credentials to inspect prior replies.
 * Finally create the following environmental variable to generate improved logging in Google Cloud, and set the value to "TRUE"
   1. PYTHONUNBUFFERED
 

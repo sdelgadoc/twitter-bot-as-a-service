@@ -12,8 +12,83 @@ import json
 import re
 from google.cloud import storage
 import gc
+from urllib.error import HTTPError
+from urllib.request import Request as UrlRequest
+from urllib.request import urlopen
 
 app = Flask(__name__)
+
+
+def get_post_backend():
+    backend = os.environ.get('POST_BACKEND', 'tweepy').lower().strip()
+    if backend not in ('tweepy', 'xquik'):
+        raise ValueError("POST_BACKEND must be 'tweepy' or 'xquik'")
+    return backend
+
+
+def get_required_env(name):
+    value = os.environ.get(name, '').strip()
+    if not value:
+        raise ValueError(name + " is required")
+    return value
+
+
+def authenticate_twitter_api():
+    # Get Twitter API authentication data
+    keys = {}
+    keys['consumer_key'] = get_required_env('CONSUMER_KEY')
+    keys['access_token'] = get_required_env('ACCESS_TOKEN')
+    keys['access_token_secret'] = get_required_env('ACCESS_TOKEN_SECRET')
+    keys['consumer_secret'] = get_required_env('CONSUMER_SECRET')
+
+    # Authenticate with the Twitter API
+    auth = tweepy.OAuthHandler(keys["consumer_key"], keys["consumer_secret"])
+    auth.set_access_token(keys["access_token"], keys["access_token_secret"])
+    return tweepy.API(auth)
+
+
+def post_xquik_tweet(tweet_text, reply_to_tweet_id=None):
+    payload = {
+        'account': get_required_env('XQUIK_ACCOUNT'),
+        'text': tweet_text,
+    }
+
+    if reply_to_tweet_id:
+        payload['reply_to_tweet_id'] = reply_to_tweet_id
+
+    api_url = os.environ.get(
+        'XQUIK_API_URL',
+        'https://xquik.com/api/v1/x/tweets',
+    )
+    request_data = json.dumps(payload).encode('utf-8')
+    post_request = UrlRequest(
+        api_url,
+        data=request_data,
+        headers={
+            'Content-Type': 'application/json',
+            'x-api-key': get_required_env('XQUIK_API_KEY'),
+        },
+        method='POST',
+    )
+
+    try:
+        with urlopen(post_request, timeout=30) as response:
+            response_text = response.read().decode('utf-8')
+            return json.loads(response_text)
+    except HTTPError as error:
+        response_text = error.read().decode('utf-8')
+        raise RuntimeError("Xquik create tweet failed: " + response_text) from error
+
+
+def post_tweet(api, tweet_text, reply_to_tweet_id=None):
+    backend = get_post_backend()
+    if backend == 'xquik':
+        return post_xquik_tweet(tweet_text, reply_to_tweet_id)
+
+    if api is None:
+        raise ValueError("Twitter API credentials are required for Tweepy posting")
+
+    return api.update_status(tweet_text, reply_to_tweet_id)
 
 
 def clean_text(tweet_text, strip_usertags = False, strip_hashtags = False):
@@ -176,18 +251,10 @@ def main():
     logger = logging.getLogger()
     logger.disabled = True
     
-    
-    # Get Twitter API authentication data
-    keys = {}
-    keys['consumer_key'] = os.environ['CONSUMER_KEY']
-    keys['access_token'] = os.environ['ACCESS_TOKEN']
-    keys['access_token_secret'] = os.environ['ACCESS_TOKEN_SECRET']
-    keys['consumer_secret'] = os.environ['CONSUMER_SECRET']
-    
-    # Authenticate with the Twitter API
-    auth = tweepy.OAuthHandler(keys["consumer_key"], keys["consumer_secret"])
-    auth.set_access_token(keys["access_token"], keys["access_token_secret"])
-    api = tweepy.API(auth)
+    post_backend = get_post_backend()
+    api = None
+    if post_backend == 'tweepy' or tweet_type.lower() == "reply".lower():
+        api = authenticate_twitter_api()
     
     # Download the model
     bucket_name = 'tweets-ai-text-gen-plus-models'
@@ -282,7 +349,7 @@ def main():
         tweet = word_seed + tweet
         
         # Post the tweet
-        api.update_status(tweet)
+        post_tweet(api, tweet)
 
         
         # Clean up memory as much as possible
@@ -383,8 +450,8 @@ def main():
                              )[0]
         
         # Post the tweet
-        api.update_status("@" + target_tweet_data[0].username + " " + tweet, 
-                          target_tweet_data[0].id_str)
+        reply_text = "@" + target_tweet_data[0].username + " " + tweet
+        post_tweet(api, reply_text, target_tweet_data[0].id_str)
       
         
         # Clean up memory as much as possible
